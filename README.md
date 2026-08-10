@@ -8,4 +8,4 @@ Phase 1 Status: Deployment Verified
 - [x] Windows 11 Host Agent paired and active
 - [x] Kali Linux Agent paired and active
 
-![Wazuh Active Agents](assets/wazuh-agents.png)
+![Wazuh Active Agents](assets/)
