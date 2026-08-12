@@ -17,7 +17,7 @@ Phase 2: Host & Network Detection Pipelines
 ## Detection Verification & Evidence
 
 #### 1. Active Endpoints Dashboard
-![Wazuh Active Agents](assets/wazuh-agents.png)
+![Wazuh Active Agents](assets/Windows-host-wazuh-agnet.png)
 
 #### 2. Network Intrusion Detection (Suricata IDS)
 *Capturing Nmap user-agent scans and reconnaissance activity on Kali endpoint (`darkcipher23`).*
