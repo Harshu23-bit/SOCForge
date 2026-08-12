@@ -5,30 +5,36 @@
 Phase 1 Status: Deployment Verified
 
 - [x] **Dockerized Wazuh SIEM Stack Deployed** (Indexer, Manager, Dashboard running on WSL2 / L: Drive)
+
 ![Active Containers](assets/dockerized-wazuh.png)
+
 - [x] **Windows 11 Host Agent** (`windows-host`) paired and active
 - [x] **Kali Linux VM Agent** (`darkcipher23`) paired and active
-![Wazuh Active Agents](assets/windows-host-wazuh-agnet.png)
+
+![Wazuh Active Agents](assets/windows-kali-host-wazuh-agent.png)
 
 ---
 
 ## Detection Verification & Evidence
 
 ### 📂 Hands-on Lab 1: File Integrity Monitoring (FIM)
+
 * **Objective:** Monitor critical directories (`/root`) in real-time for unauthorized file additions, modifications, or deletions.
-* **Server Manager Config (`/var/ossec/etc/ossec.conf`):**
+
+* **Server Manager Config (`/var/ossec/etc/ossec.conf`):** Changed `no` to `yes` in the following two lines
   ```xml
-  <global>
     <logall>yes</logall>
     <logall_json>yes</logall_json>
-  </global>
+   ```
+
 ![FIM manager config](assets/lab1-fim/manager-config.png)
 
-* **Agent/Client Config (/var/ossec/etc/ossec.conf):**
-<syscheck>
+* **Agent/Client Config (`/var/ossec/etc/ossec.conf`):** Added this line
+  ```xml
   <directories check_all="yes" report_changes="yes" realtime="yes">/root</directories>
-</syscheck>
+   ```
 ![FIM client config](assets/lab1-fim/client-config.png)
 
----
+![FIM Alerts Proof](assets/lab1-fim/fim-alerts.png)
 
+---
