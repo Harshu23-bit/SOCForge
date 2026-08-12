@@ -17,7 +17,7 @@ Phase 1 Status: Deployment Verified
 
 ## Detection Verification & Evidence
 
-### 📂 Hands-on Lab 1: File Integrity Monitoring (FIM)
+### Hands-on Lab 1: File Integrity Monitoring (FIM)
 
 * **Objective:** Monitor critical directories (`/root`) in real-time for unauthorized file additions, modifications, or deletions.
 
@@ -33,11 +33,38 @@ Phase 1 Status: Deployment Verified
   ```xml
   <directories check_all="yes" report_changes="yes" realtime="yes">/root</directories>
    ```
+
 ![FIM client config](assets/lab1-fim/client-config.png)
 
-* **Real-Time Alert Verification:**
-Created and deleted test files inside /root. Wazuh immediately captured the events, firing Rule 554 (File added to the system) and Rule 553 (File deleted).
+* **Real-Time Alert Verification:** Created and deleted test files inside /root. Wazuh immediately captured the events, firing Rule 554 (File added to the system) and Rule 553 (File deleted).
 
 ![FIM Alerts Proof](assets/lab1-fim/fim-detection.png)
+
+### Hands-on Lab 2: Detecting Network Intrusion using Suricata IDS
+
+* **Objective:** Ingest real-time network threat telemetry by integrating Suricata IDS on the Kali Linux agent (`darkcipher23`) to detect port scans, network reconnaissance, and suspicious user-agents.
+
+* **Agent/Client Config (`/var/ossec/etc/ossec.conf` on Kali Linux):** Configured the Wazuh Agent log-collector daemon to parse Suricata's JSON event output (`eve.json`):
+  ```xml
+  <localfile>
+    <log_format>json</log_format>
+    <location>/var/log/suricata/eve.json</location>
+  </localfile>
+  ```
+
+![Suricata IDS Agent config](assets/lab2-suricata/agent-config.png)
+
+* **Ruleset:** Utilized default Emerging Threats (ET) Open ruleset managed via `suricata-update`.
+
+* **Attack Simulation:** Executed Nmap network service enumeration and user-agent probing against target services to simulate adversary reconnaissance:
+  ```bash
+  nmap -sV --script=http-enum,http-headers -p 8080 192.168.0.105
+  ```
+
+![nmap execution](assets/lab2-suricata/nmap-simulation.png)
+
+* **Real-Time Alert Verification:** Suricata analyzed incoming network packets, generated JSON alerts in eve.json, and passed them to Wazuh Manager. The manager matched rule signatures, firing Rule 86601 (Suricata: Alert - ET SCAN Possible Nmap User-Agent Observed).
+
+![suricata alert detection](assets/lab2-suricata/suricata-ids.png)
 
 ---
