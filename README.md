@@ -67,4 +67,23 @@ Phase 1 Status: Deployment Verified
 
 ![suricata alert detection](assets/lab2-suricata/suricata-ids.png)
 
+### Hands-on Lab 3: Detecting Vulnerabilities
+
+* **Objective:** Automatically audit endpoint software inventories against National Vulnerability Database (NVD) CVE feeds to identify unpatched software and quantify host risk exposure.
+
+* **Server Manager Config (`/var/ossec/etc/ossec.conf` on Wazuh Manager):**
+  Enabled the `vulnerability-detection` module with automated NVD feed synchronization:
+  ```xml
+  <vulnerability-detection>
+    <enabled>yes</enabled>
+    <run_on_start>yes</run_on_start>
+    <interval>5m</interval>
+  </vulnerability-detection>
+  ```
+![vulnerability detection enabled](assets/lab3-vulnerabilities/enabled-vuln-detection.png)
+
+* **Real-Time Audit Verification:** Wazuh scanned installed application package inventories on windows-host and correlated them against vulnerability feeds. It flagged 20 total vulnerabilities (10 High, 9 Medium, 1 Low), identifying high-risk exposures across application frameworks (PyJWT, Werkzeug, Flask) and desktop software (Steam).
+
+![vulnerability detection](assets/lab3-vulnerabilities/detecting-vulnerabilities.png)
+
 ---
