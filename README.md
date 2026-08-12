@@ -5,27 +5,30 @@
 Phase 1 Status: Deployment Verified
 
 - [x] **Dockerized Wazuh SIEM Stack Deployed** (Indexer, Manager, Dashboard running on WSL2 / L: Drive)
+![Active Containers](assets/dockerized-wazuh.png)
 - [x] **Windows 11 Host Agent** (`windows-host`) paired and active
 - [x] **Kali Linux VM Agent** (`darkcipher23`) paired and active
-
-Phase 2: Host & Network Detection Pipelines
-- [x] **Suricata IDS Integration:** Real-time network intrusion monitoring (Nmap scan & HTTP banner detection)
-- [x] **File Integrity Monitoring (FIM):** Real-time tracking of file additions (Rule 554) and deletions (Rule 553)
+![Wazuh Active Agents](assets/windows-host-wazuh-agnet.png)
 
 ---
 
 ## Detection Verification & Evidence
 
-#### 1. Active Endpoints Dashboard
-![Wazuh Active Agents](assets/Windows-host-wazuh-agnet.png)
+### 📂 Hands-on Lab 1: File Integrity Monitoring (FIM)
+* **Objective:** Monitor critical directories (`/root`) in real-time for unauthorized file additions, modifications, or deletions.
+* **Server Manager Config (`/var/ossec/etc/ossec.conf`):**
+  ```xml
+  <global>
+    <logall>yes</logall>
+    <logall_json>yes</logall_json>
+  </global>
+![FIM manager config](assets/lab1-fim/manager-config.png)
 
-#### 2. Network Intrusion Detection (Suricata IDS)
-*Capturing Nmap user-agent scans and reconnaissance activity on Kali endpoint (`darkcipher23`).*
-![Suricata IDS Alerts](assets/suricata-ids.png)
-
-#### 3. File Integrity Monitoring (FIM)
-*Real-time Syscheck alerts tracking file creation and deletion events.*
-![File Integrity Monitoring](assets/fim-detection.png)
+* **Agent/Client Config (/var/ossec/etc/ossec.conf):**
+<syscheck>
+  <directories check_all="yes" report_changes="yes" realtime="yes">/root</directories>
+</syscheck>
+![FIM client config](assets/lab1-fim/client-config.png)
 
 ---
 
