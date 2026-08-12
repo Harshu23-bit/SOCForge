@@ -35,6 +35,6 @@ Phase 1 Status: Deployment Verified
    ```
 ![FIM client config](assets/lab1-fim/client-config.png)
 
-![FIM Alerts Proof](assets/lab1-fim/fim-alerts.png)
+![FIM Alerts Proof](assets/lab1-fim/fim-detection.png)
 
 ---
