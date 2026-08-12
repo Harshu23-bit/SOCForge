@@ -8,8 +8,6 @@ Phase 1 Status: Deployment Verified
 - [x] **Windows 11 Host Agent** (`windows-host`) paired and active
 - [x] **Kali Linux VM Agent** (`darkcipher23`) paired and active
 
-![Wazuh Active Agents](assets/)
-
 Phase 2: Host & Network Detection Pipelines
 - [x] **Suricata IDS Integration:** Real-time network intrusion monitoring (Nmap scan & HTTP banner detection)
 - [x] **File Integrity Monitoring (FIM):** Real-time tracking of file additions (Rule 554) and deletions (Rule 553)
