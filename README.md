@@ -29,11 +29,14 @@ Phase 1 Status: Deployment Verified
 
 ![FIM manager config](assets/lab1-fim/manager-config.png)
 
-* **Agent/Client Config (`/var/ossec/etc/ossec.conf`):** Added this line
+* **Agent/Client Config (`/var/ossec/etc/ossec.conf`):** Added real-time syscheck monitoring for `/root`
   ```xml
   <directories check_all="yes" report_changes="yes" realtime="yes">/root</directories>
    ```
 ![FIM client config](assets/lab1-fim/client-config.png)
+
+* **Real-Time Alert Verification:**
+Created and deleted test files inside /root. Wazuh immediately captured the events, firing Rule 554 (File added to the system) and Rule 553 (File deleted).
 
 ![FIM Alerts Proof](assets/lab1-fim/fim-detection.png)
 
