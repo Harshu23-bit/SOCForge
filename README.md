@@ -71,8 +71,7 @@ Phase 1 Status: Deployment Verified
 
 * **Objective:** Automatically audit endpoint software inventories against National Vulnerability Database (NVD) CVE feeds to identify unpatched software and quantify host risk exposure.
 
-* **Server Manager Config (`/var/ossec/etc/ossec.conf` on Wazuh Manager):**
-  Enabled the `vulnerability-detection` module with automated NVD feed synchronization:
+* **Server Manager Config (`/var/ossec/etc/ossec.conf` on Wazuh Manager):** Enabled the `vulnerability-detection` module with automated NVD feed synchronization:
   ```xml
   <vulnerability-detection>
     <enabled>yes</enabled>
@@ -80,10 +79,36 @@ Phase 1 Status: Deployment Verified
     <interval>5m</interval>
   </vulnerability-detection>
   ```
+
 ![vulnerability detection enabled](assets/lab3-vulnerabilities/enabled-vuln-detection.png)
 
 * **Real-Time Audit Verification:** Wazuh scanned installed application package inventories on windows-host and correlated them against vulnerability feeds. It flagged 20 total vulnerabilities (10 High, 9 Medium, 1 Low), identifying high-risk exposures across application frameworks (PyJWT, Werkzeug, Flask) and desktop software (Steam).
 
 ![vulnerability detection](assets/lab3-vulnerabilities/detecting-vulnerabilities.png)
+
+### Hands-on Lab 4: Detecting Execution of Malicious Commands via Auditd
+
+* **Objective:** Audit system calls (`execve`) on Kali Linux (`darkcipher23`) to capture process creation and command-line execution parameters in real time.
+
+* **Agent/Client Config (/var/ossec/etc/ossec.conf on Kali Linux):** Added localfile log collector for kernel audit logs:
+  ```xml
+  <localfile>
+    <log_format>audit</log_format>
+    <location>/var/log/audit/audit.log</location>
+  </localfile>
+  ```
+
+* **Kernel Audit Rule Config (`/etc/audit/rules.d/wazuh.rules`):**
+  Configured persistent kernel audit rules targeting 64-bit and 32-bit execution system calls (`execve`) under elevated root privileges (`euid=0`):
+  ```text
+  -a exit,always -F euid=0 -F arch=b64 -S execve -k audit-wazuh-c
+  -a exit,always -F euid=0 -F arch=b32 -S execve -k audit-wazuh-c
+  ```
+
+![agent auditd config](assets/lab4-command-execution/auditd-config.png)
+
+* **Real-Time Command Execution & Alert Verification:** Executed reconnaissance and system tools (netstat, df, sort, sed). Wazuh parsed /var/log/audit/audit.log and fired Rule 80792 (Audit: Command execution captured), logging the exact binary paths and process details.
+
+![auditd alerts](assets/lab4-command-execution/auditd-alerts.png)
 
 ---
