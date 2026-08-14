@@ -105,7 +105,7 @@ Phase 1 Status: Deployment Verified
 
 ![auditd alerts](assets/lab4-command-execution/auditd-alerts.png)
 
-### ands-on Lab 5: Automated SSH Brute-Force Detection & Active Response Mitigation
+### Hands-on Lab 5: Automated SSH Brute-Force Detection & Active Response Mitigation
 
 * **Objective:** Simulate an automated SSH brute-force attack using `hydra`, trigger signature-based detection rules in Wazuh, and automatically block the attacking IP in real time using Wazuh's **Active Response** firewall-drop integration.
 
