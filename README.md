@@ -125,7 +125,7 @@ Phase 1 Status: Deployment Verified
     <timeout>180</timeout>
   </active-response>
   ```
-![Manager ossec.conf <active-response> block](assets/lab5-ssh-active-response/active-response-config.png)
+![Manager ossec.conf <active-response> block](assets/lab5-ssh-bruteforce/active-response-config.png)
 
 * **Wazuh Agent Active Response Ingestion (/var/ossec/etc/ossec.conf):** Ensured the agent forwards local mitigation logs to the manager for auditing:
   ```xml
@@ -134,7 +134,7 @@ Phase 1 Status: Deployment Verified
     <location>/var/log/active-responses.log</location>
   </localfile>
   ```
-![Agent ossec.conf <localfile> block](assets/lab5-ssh-active-response/active-response-log-config.png)
+![Agent ossec.conf <localfile> block](assets/lab5-ssh-bruteforce/active-response-log-config.png)
 
 * **Real-Time Detection & Automated Block Verification:**
 
@@ -144,6 +144,6 @@ Phase 1 Status: Deployment Verified
 
 - **Rule 80792:** Verified via `auditd` telemetry the execution of `/var/ossec/active-response/bin/firewall-drop`, providing host-level evidence of automated response execution.
 
-![Wazuh Dashboard showing Rule 651 & 5760](assets/lab5-ssh-active-response/dashboard-active-response-alerts.png)
+![Wazuh Dashboard showing Rule 651 & 5760](assets/lab5-ssh-bruteforce/dashboard-active-response-alerts.png)
 
 ---
