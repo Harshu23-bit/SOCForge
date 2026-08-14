@@ -93,8 +93,7 @@ Phase 1 Status: Deployment Verified
   </localfile>
   ```
 
-* **Kernel Audit Rule Config (`/etc/audit/rules.d/wazuh.rules`):**
-  Configured persistent kernel audit rules targeting 64-bit and 32-bit execution system calls (`execve`) under elevated root privileges (`euid=0`):
+* **Kernel Audit Rule Config (`/etc/audit/rules.d/wazuh.rules`):** Configured persistent kernel audit rules targeting 64-bit and 32-bit execution system calls (`execve`) under elevated root privileges (`euid=0`):
   ```text
   -a exit,always -F euid=0 -F arch=b64 -S execve -k audit-wazuh-c
   -a exit,always -F euid=0 -F arch=b32 -S execve -k audit-wazuh-c
@@ -109,8 +108,7 @@ Phase 1 Status: Deployment Verified
 
 * **Objective:** Simulate an automated SSH brute-force attack using `hydra`, trigger signature-based detection rules in Wazuh, and automatically block the attacking IP in real time using Wazuh's **Active Response** firewall-drop integration.
 
-* **Attack Simulation Vector (Hydra):**
-  Executed a targeted dictionary attack against the SSH service on the target endpoint:
+* **Attack Simulation Vector (Hydra):** Executed a targeted dictionary attack against the SSH service on the target endpoint:
   ```bash
   hydra -t 4 -l root -P /usr/share/john/password.lst 192.168.0.105 ssh
   ```
@@ -145,5 +143,51 @@ Phase 1 Status: Deployment Verified
 - **Rule 80792:** Verified via `auditd` telemetry the execution of `/var/ossec/active-response/bin/firewall-drop`, providing host-level evidence of automated response execution.
 
 ![Wazuh Dashboard showing Rule 651 & 5760](assets/lab5-ssh-bruteforce/dashboard-active-response-alerts.png)
+
+### Hands-on Lab 6: File Integrity Monitoring (FIM) & Automated VirusTotal Malware Detection
+
+* **Objective:** Monitor critical host directories (`/root`) using Wazuh Syscheck, create custom rules for file additions/modifications, and automate threat detection by integrating the VirusTotal API to scan file hashes in real time.
+
+* **Custom FIM Rules Configuration (`/var/ossec/etc/rules/local_rules.xml`):** Defined custom rules to elevate Syscheck events when files are modified (`syscheck_file_changed`, SID `550`) or added (`syscheck_file_added`, SID `554`) inside the `/root` directory:
+  ```xml
+  <group name="local,syslog,sshd,">
+    <!-- Rule 100200: File modified in /root -->
+    <rule id="100200" level="7">
+      <if_sid>550</if_sid>
+      <field name="file">/root</field>
+      <description>File modified in /root directory.</description>
+    </rule>
+
+    <!-- Rule 100201: File added to /root -->
+    <rule id="100201" level="7">
+      <if_sid>554</if_sid>
+      <field name="file">/root</field>
+      <description>File added to /root directory.</description>
+    </rule>
+  </group>
+  ```
+![local_rules.xml showing custom rules 100200 & 100201](assets/lab6-virustotal/custom-fim-rules.png)
+
+* **VirusTotal API Integration (/var/ossec/etc/ossec.conf):** Integrated the VirusTotal threat intelligence API on the Wazuh Manager to automatically trigger hash lookups whenever rules 100200 or 100201 fire:
+  ```xml
+  <integration>
+    <name>virustotal</name>
+    <api_key>YOUR_VIRUSTOTAL_API_KEY</api_key>
+    <rule_id>100200,100201</rule_id>
+    <alert_format>json</alert_format>
+  </integration>
+  ```
+
+* **Malware Simulation & Execution:** Downloaded the standardized EICAR malware test string directly into the monitored /root directory:
+
+![Malware download](assets/lab6-virustotal/eicar-malware-download.png)
+
+* **Real-Time Detection & Alert Verification:**
+
+- **Rule 100201 triggered on file creation in /root, forwarding the file hash (SHA1: 3395856ce81f2b7382dee72602f798b642f14140) to VirusTotal.**
+
+- **Rule 87105 (Level 12 - High Severity) fired on the Wazuh Dashboard confirming VirusTotal flagged the sample across 61 detection engines.**
+
+![Wazuh Dashboard document details showing Rule 87105 level 12 alert](assets/lab6-virustotal/virustotal-alert.png)
 
 ---
