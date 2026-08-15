@@ -2,9 +2,35 @@
 
 > An enterprise-grade, AI-assisted Security Operations Center (SOC) ecosystem. SOCForge ingests host telemetry via multi-platform Wazuh agents, normalizes security events through a FastAPI middleware pipeline, and leverages LLM capabilities for real-time alert triage, threat scoring, and automated SOAR playbook execution.
 
-Phase 1 Status: Deployment Verified
+## System Architecture & Data Flow
 
-- [x] **Dockerized Wazuh SIEM Stack Deployed** (Indexer, Manager, Dashboard running on WSL2 / L: Drive)
+```text
+                                [ Wazuh Manager ]
+                                        │ (Webhook Integration: Level >= 7)
+                                        ▼
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    SOCForge Python SOAR Middleware                           │
+│                                                                              │
+│  [ FastAPI Listener ] ──► [ Telemetry Fusion ] ──► [ Structured LLM Engine ] │
+│   (Async Webhook)          (VT API + MITRE)         (Pydantic Schema)        │
+└──────────────────────────────────────┬───────────────────────────────────────┘
+                                       │
+                    ┌──────────────────┴──────────────────┐
+                    ▼                                     ▼
+      [ Operational Dispatcher ]             [ Incident Feedback Loop ]
+   (Rich Discord SOC Webhook Cards)       (Injected back into Wazuh Dashboard)
+                    │                                     │
+                    └──────────────────┬──────────────────┘
+                                       ▼
+                       [ Validation & Verification ]
+                   (Atomic Red Team + Pytest Suite)
+```
+
+---
+
+* ** Deployment Verified**
+
+- [x] **Dockerized Wazuh SIEM Stack Deployed** (Indexer, Manager, Dashboard running on WSL2)
 
 ![Active Containers](assets/dockerized-wazuh.png)
 
@@ -15,7 +41,7 @@ Phase 1 Status: Deployment Verified
 
 ---
 
-## Detection Verification & Evidence
+## Phase 1: Baseline Detection & Rule Verification (Labs 1–6)
 
 ### Hands-on Lab 1: File Integrity Monitoring (FIM)
 
