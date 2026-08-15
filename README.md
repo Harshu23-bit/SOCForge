@@ -3,7 +3,6 @@
 > An enterprise-grade, AI-assisted Security Operations Center (SOC) ecosystem. SOCForge ingests host telemetry via multi-platform Wazuh agents, normalizes security events through a FastAPI middleware pipeline, and leverages LLM capabilities for real-time alert triage, threat scoring, and automated SOAR playbook execution.
 
 ## System Architecture & Data Flow
-
 ```text
                                 [ Wazuh Manager ]
                                         │ (Webhook Integration: Level >= 7)
