@@ -28,7 +28,7 @@
 
 ---
 
-* ** Deployment Verified**
+* **Deployment Verified**
 
 - [x] **Dockerized Wazuh SIEM Stack Deployed** (Indexer, Manager, Dashboard running on WSL2)
 
