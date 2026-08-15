@@ -217,7 +217,8 @@
 
 ## Phase 2: Custom AI SOAR Engine Development
 
-###Microservice Architecture & Webhook Ingestion Listener
+### Microservice Architecture & Webhook Ingestion Listener
+
 * **Framework:** FastAPI (Python 3.12, Async/Await) running on Uvicorn web server.
 * **Core Endpoints:**
   * `GET /health` — Service health check & uptime monitor.
@@ -234,11 +235,10 @@ The FastAPI SOAR service runs asynchronously on port `8000`, continuously listen
 
 ![FastAPI Server Execution](docs/images/soar_engine/01_api_triage_server.png)
 
-#### 2. EICAR Malware Ingestion & AI Triage Pipeline Test
-Testing the ingestion pipeline with a mock EICAR malware hash (`44d88612fea8a8f36de82e1278abb02f`) triggers live VirusTotal enrichment (65/67 engines flagging malicious) and generates a structured Gemini AI triage output.
-
 ![API Webhook Test Payload](docs/images/soar_engine/02_api_triage_test.png)
 
+#### 2. EICAR Malware Ingestion & AI Triage Pipeline Test
+Testing the ingestion pipeline with a mock EICAR malware hash (`44d88612fea8a8f36de82e1278abb02f`) triggers live VirusTotal enrichment (65/67 engines flagging malicious) and generates a structured Gemini AI triage output.
 ```json
 {
   "status": "triaged",
