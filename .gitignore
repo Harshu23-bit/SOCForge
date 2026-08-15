@@ -2,3 +2,5 @@
 __pycache__/
 *.log
 wazuh-docker/
+soar_engine/venv/
+soar_engine/.env
