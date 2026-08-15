@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request, HTTPException
 import logging
 from app.config import settings
+from app.enrichment import extract_hash_from_payload, get_virustotal_hash_report
+from app.llm_triage import analyze_alert_with_llm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,7 +27,6 @@ async def receive_wazuh_alert(request: Request):
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    # Extract core telemetry metadata
     rule = payload.get("rule", {})
     agent = payload.get("agent", {})
     
@@ -34,12 +35,35 @@ async def receive_wazuh_alert(request: Request):
     agent_name = agent.get("name", "unknown")
     description = rule.get("description", "No description provided")
 
-    logger.info(f"Alert Ingested | Agent: {agent_name} | Rule SID: {rule_id} | Level: {rule_level}")
+    # Step 1: Extract Hash & Query VirusTotal
+    file_hash = extract_hash_from_payload(payload)
+    vt_report = None
+    if file_hash:
+        logger.info(f"Extracting payload hash: {file_hash}. Querying Threat Intel...")
+        vt_report = await get_virustotal_hash_report(file_hash)
 
-    return {
-        "status": "ingested",
+    # Compile enriched bundle for AI analysis
+    enriched_telemetry = {
         "agent": agent_name,
         "rule_id": rule_id,
         "rule_level": rule_level,
-        "description": description
+        "description": description,
+        "hash": file_hash,
+        "virustotal": vt_report,
+        "raw_payload": payload
+    }
+
+    # Step 2: Execute AI Triage Analysis
+    logger.info("Triggering Gemini AI Triage Engine...")
+    ai_triage = analyze_alert_with_llm(enriched_telemetry)
+
+    return {
+        "status": "triaged",
+        "agent": agent_name,
+        "rule_id": rule_id,
+        "rule_level": rule_level,
+        "description": description,
+        "hash": file_hash,
+        "virustotal": vt_report,
+        "ai_triage": ai_triage.model_dump()
     }

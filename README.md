@@ -215,4 +215,61 @@
 
 ![Wazuh Dashboard document details showing Rule 87105 level 12 alert](assets/lab6-virustotal/virustotal-alert.png)
 
+## Phase 2: Custom AI SOAR Engine Development
+
+###Microservice Architecture & Webhook Ingestion Listener
+* **Framework:** FastAPI (Python 3.12, Async/Await) running on Uvicorn web server.
+* **Core Endpoints:**
+  * `GET /health` — Service health check & uptime monitor.
+  * `POST /api/v1/triage` — Asynchronous ingestion webhook for Wazuh alert payloads.
+* **Telemetry Fusion Engine (`app/enrichment.py`):** Parses MD5/SHA256 file hashes from alert payloads and queries the VirusTotal v3 REST API to retrieve real-time detection stats, reputation scores, and malware family names.
+* **Structured AI Triage Engine (`app/llm_triage.py`):** Utilizes `google-genai` with `gemini-3.6-flash` and strict Pydantic schema validation (`app/schemas.py`) to generate deterministic JSON incident reports with risk scores and MITRE ATT&CK mapping.
+
+---
+
+### Integration Testing & Verification
+
+#### 1. Middleware Server Execution
+The FastAPI SOAR service runs asynchronously on port `8000`, continuously listening for inbound Wazuh webhooks.
+
+![FastAPI Server Execution](docs/images/soar_engine/01_api_triage_server.png)
+
+#### 2. EICAR Malware Ingestion & AI Triage Pipeline Test
+Testing the ingestion pipeline with a mock EICAR malware hash (`44d88612fea8a8f36de82e1278abb02f`) triggers live VirusTotal enrichment (65/67 engines flagging malicious) and generates a structured Gemini AI triage output.
+
+![API Webhook Test Payload](docs/images/soar_engine/02_api_triage_test.png)
+
+```json
+{
+  "status": "triaged",
+  "agent": "darkcipher23",
+  "rule_id": "87105",
+  "rule_level": 12,
+  "description": "FIM: Suspicious executable detected",
+  "hash": "44d88612fea8a8f36de82e1278abb02f",
+  "virustotal": {
+    "status": "enriched",
+    "malicious": 65,
+    "suspicious": 0,
+    "harmless": 0,
+    "undetected": 2,
+    "reputation": 3789,
+    "meaningful_name": "eicar_test.txt"
+  },
+  "ai_triage": {
+    "severity": "LOW",
+    "risk_score": 20,
+    "summary": "File Integrity Monitoring detected the creation of a file matching the EICAR antivirus test file signature on agent darkcipher23. VirusTotal results confirm 5 detections associated with this standard benign test file.",
+    "mitre_tactic": null,
+    "mitre_technique_id": null,
+    "recommended_action": [
+      "Verify with system administrators whether the EICAR test file was generated as part of planned security controls testing.",
+      "Delete the EICAR test file from the endpoint if it is no longer needed for testing purposes.",
+      "Ensure the endpoint detection and response (EDR) agent logged and handled the test event according to security policy."
+    ]
+  }
+}
+```
+![Both log and response](docs/images/soar_engine/soar_engine_backend_log_and_response.png)
+
 ---
