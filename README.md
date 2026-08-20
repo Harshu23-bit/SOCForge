@@ -347,13 +347,13 @@ class AIAssessment(BaseModel):
 
 * **Incident Detection & AI Assessment Embed:**
 
-![Discord Incident Card]("docs/images/soar_engine/discord_alert_card.png")
+![Discord Incident Card](docs/images/soar_engine/discord_alert_card.png)
 
 * **Interactive Analyst Action & Audit Logging:**
 
 ![Discord Interactive Response Audit](docs/images/soar_engine/discord_action_audit.png)
 
-* **Interaction Verification (`app/discord_interactions.py`): Security verification using `Ed25519` cryptographic signatures on native interaction requests.
+* **Interaction Verification (`app/discord_interactions.py`):** Security verification using `Ed25519` cryptographic signatures on native interaction requests.
 
 ```python
 # Header verification logic for POST /api/v1/interactions
