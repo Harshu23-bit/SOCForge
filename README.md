@@ -215,61 +215,250 @@
 
 ![Wazuh Dashboard document details showing Rule 87105 level 12 alert](assets/lab6-virustotal/virustotal-alert.png)
 
-## Phase 2: Custom AI SOAR Engine Development
+## Phase 2: SOCForge SOAR Engine Development
 
-### Microservice Architecture & Webhook Ingestion Listener
+* **Architecture Overview:** Asynchronous FastAPI service running under `soar_engine/` handling telemetry ingestion, enrichment, AI triage, and analyst interaction loops.
 
-* **Framework:** FastAPI (Python 3.12, Async/Await) running on Uvicorn web server.
-* **Core Endpoints:**
-  * `GET /health` — Service health check & uptime monitor.
-  * `POST /api/v1/triage` — Asynchronous ingestion webhook for Wazuh alert payloads.
-* **Telemetry Fusion Engine (`app/enrichment.py`):** Parses MD5/SHA256 file hashes from alert payloads and queries the VirusTotal v3 REST API to retrieve real-time detection stats, reputation scores, and malware family names.
-* **Structured AI Triage Engine (`app/llm_triage.py`):** Utilizes `google-genai` with `gemini-3.6-flash` and strict Pydantic schema validation (`app/schemas.py`) to generate deterministic JSON incident reports with risk scores and MITRE ATT&CK mapping.
+```text
+                           ┌─────────────────────┐
+                           │    Wazuh Manager    │
+                           └──────────┬──────────┘
+                                      │
+                                      │ POST /api/v1/events/wazuh
+                                      ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         SOCForge SOAR Engine                                │
+│                                                                             │
+│  ┌──────────────┐    ┌──────────────┐    ┌─────────────────┐                │
+│  │  Normalizer  │───►│  Enrichment  │───►│ Deterministic   │                │
+│  │ Wazuh →      │    │ VirusTotal + │    │ Triage          │                │
+│  │ DetectionEvent│   │ MITRE ATT&CK │    │ Risk/Severity   │                │
+│  └──────────────┘    └──────────────┘    └────────┬────────┘                │
+│                                                   │                         │
+│                                                   ▼                         │
+│                                         ┌───────────────────┐               │
+│                                         │ Canonical Incident│               │
+│                                         └─────────┬─────────┘               │
+│                                                   │                         │
+│                              ┌────────────────────┴─────────────────┐       │
+│                              ▼                                      ▼       │
+│                    ┌──────────────────┐                    ┌────────────┐   │ 
+│                    │ Gemini Assessment│                    │  Discord   │   │
+│                    │ AI interpretation│                    │ SOC Card   │   │
+│                    └────────┬─────────┘                    └─────┬──────┘   │
+│                             │                                    │          │
+│                             └───────────────┬────────────────────┘          │ 
+│                                             ▼                               │
+│                                  ┌─────────────────────┐                    │
+│                                  │ Discord Interaction │                    │
+│                                  │ + Action Audit      │                    │
+│                                  └──────────┬──────────┘                    │
+└─────────────────────────────────────────────┼────────────────────────────---┘
+                                              │
+                                              ▼
+                                     Wazuh Active Response
+                                     (Stage 5 - pending)
+```
 
----
+### Stage 1: Ingestion & Incident Foundation
 
-### Integration Testing & Verification
+* **Objective:** Establish an asynchronous middleware layer to convert raw, non-uniform Wazuh JSON alerts into canonical `DetectionEvent` and `Incident` schemas.
 
-#### 1. Middleware Server Execution
-The FastAPI SOAR service runs asynchronously on port `8000`, continuously listening for inbound Wazuh webhooks.
+* **API Endpoint Definitions (`app/main.py`):**
 
-![FastAPI Server Execution](docs/images/soar_engine/01_api_triage_server.png)
+```text
+POST /api/v1/events/wazuh       # Ingest raw Wazuh webhook alerts
+GET  /api/v1/incidents          # Retrieve all active/dismissed incidents
+GET  /api/v1/incidents/{id}     # Fetch canonical incident by ID
+GET  /health                    # Service health check
+```
 
-![API Webhook Test Payload](docs/images/soar_engine/02_api_triage_test.png)
+* **Core Design Rule:** Telemetry is strictly preserved. Missing data remains `null`/`unknown` and is never populated with fabricated fallback defaults.
 
-#### 2. EICAR Malware Ingestion & AI Triage Pipeline Test
-Testing the ingestion pipeline with a mock EICAR malware hash (`44d88612fea8a8f36de82e1278abb02f`) triggers live VirusTotal enrichment (65/67 engines flagging malicious) and generates a structured Gemini AI triage output.
+### Stage 2: Threat Enrichment & Deterministic Triage
+
+* **Objective:** Perform automated threat intelligence lookups and calculate authoritative risk scores before passing context to AI models.
+
+* **VirusTotal Hash Enrichment (`app/enrichment.py`):** Queries VirusTotal v3 for observed SHA-256/MD5 hashes.
+
 ```json
 {
-  "status": "triaged",
-  "agent": "darkcipher23",
-  "rule_id": "87105",
-  "rule_level": 12,
-  "description": "FIM: Suspicious executable detected",
-  "hash": "44d88612fea8a8f36de82e1278abb02f",
-  "virustotal": {
-    "status": "enriched",
-    "malicious": 65,
-    "suspicious": 0,
-    "harmless": 0,
-    "undetected": 2,
-    "reputation": 3789,
-    "meaningful_name": "eicar_test.txt"
-  },
-  "ai_triage": {
-    "severity": "LOW",
-    "risk_score": 20,
-    "summary": "File Integrity Monitoring detected the creation of a file matching the EICAR antivirus test file signature on agent darkcipher23. VirusTotal results confirm 5 detections associated with this standard benign test file.",
-    "mitre_tactic": null,
-    "mitre_technique_id": null,
-    "recommended_action": [
-      "Verify with system administrators whether the EICAR test file was generated as part of planned security controls testing.",
-      "Delete the EICAR test file from the endpoint if it is no longer needed for testing purposes.",
-      "Ensure the endpoint detection and response (EDR) agent logged and handled the test event according to security policy."
-    ]
-  }
+  "status": "enriched",
+  "malicious": 65,
+  "suspicious": 0,
+  "harmless": 0,
+  "undetected": 2,
+  "total_engines": 75,
+  "reputation": 3788
 }
 ```
-![Both log and response](docs/images/soar_engine/soar_engine_backend_log_and_response.png)
+
+ * Failure Protections: Explicitly handles `skipped` (no hash), `not_found`, `rate_limited`, and `error` states without breaking the pipeline.
+
+* **MITRE ATT&CK Telemetry Mapping (`app/enrichment.py`):** Maps observed commands and binaries to ATT&CK tactics while separating raw evidence from inferences.
+
+```json
+{
+  "observed_processes": ["powershell.exe"],
+  "observed_indicators": ["Encoded PowerShell command line"],
+  "technique_id": "T1059",
+  "subtechniques": ["T1059.001 — PowerShell"]
+}
+```
+
+* **Deterministic Risk Engine (`app/triage.py`):** Authoritative risk calculation rule breakdown:
+
+```plaintext
+Wazuh Rule Level 12             : +65
+PowerShell Execution            :  +5
+Encoded Command Flag            : +10
+Outbound Network Connection     :  +5
+VirusTotal Malicious Detections : +20
+──────────────────────────────────────
+Calculated Risk Score           : 105 ➔ 100 (Capped)
+Severity Level                  : CRITICAL
+```
+
+### Stage 3: Gemini Structured AI Assessment Layer
+
+* **Objective:** Leverage LLM reasoning to interpret complex telemetry without allowing AI hallucinations to alter authoritative risk or containment decisions.
+
+* **Pipeline Execution:** `DetectionEvent` + `EnrichmentResult` + `TriageResult` ➔  `Gemini (gemini-3.6-flash)` ➔  `AIAssessment`
+
+* **Structured Output Schema (app/schemas.py):**
+
+```python
+class AIAssessment(BaseModel):
+    operational_title: str
+    summary: str
+    confidence_score: float
+    threat_assessment: str
+    known_facts: List[str]
+    investigative_unknowns: List[str]
+    analyst_recommendation: str
+    model: str = "gemini-3.6-flash"
+```
+
+* **Non-Fatal Fallback Handling:** If Gemini returns an error (e.g., `503 Service Unavailable`), SOCForge generates a fallback assessment object, preserving the deterministic risk score and keeping the pipeline functional.
+
+### Stage 4: Discord SOC Command Center & Interaction Loop
+
+* **Objective:** Deliver real-time threat intelligence to analysts via Discord with interactive action buttons (`🔒 Isolate Host`, `🛑 Kill PID`, `✖  Dismiss`).
+
+* **Incident Detection & AI Assessment Embed:**
+
+![Discord Incident Card](docs/assets/discord_alert_card.png)
+
+* **Interactive Analyst Action & Audit Logging:**
+
+![Discord Interactive Response Audit](docs/assets/discord_action_audit.png)
+
+* **Interaction Verification (`app/discord_interactions.py`): Security verification using `Ed25519` cryptographic signatures on native interaction requests.
+
+```python
+# Header verification logic for POST /api/v1/interactions
+verify_key.verify(
+    timestamp.encode() + body.encode(),
+    bytes.fromhex(signature)
+)
+```
+
+* **Containment Safety Switch Configuration (.env):**
+
+```text
+# Safe development mode — blocks destructive commands
+SOCFORGE_CONTAINMENT_ENABLED=false
+```
+
+`✖  Dismiss` ➔ Executes natively, updating status to `DISMISSED`.
+
+`🔒 Isolate Host` / `🛑 Kill PID` ➔ Safely blocked with audit logging when switch is disabled.
+
+### Automated Test Suite & Verification
+* **Execution Command:**
+
+```bash
+cd soar_engine
+source venv/bin/activate
+python -m pytest -v
+```
+
+* **Test Output Log:**
+
+```text
+============================= test session starts ==============================
+collected 17 items
+
+tests/test_api.py :: test_health_check PASSED                           [  5%]
+tests/test_api.py :: test_receive_wazuh_event PASSED                    [ 11%]
+tests/test_api.py :: test_get_incident PASSED                           [ 17%]
+tests/test_api.py :: test_get_incident_not_found PASSED                 [ 23%]
+tests/test_enrichment.py :: test_virustotal_enrichment PASSED           [ 29%]
+tests/test_enrichment.py :: test_virustotal_skip_no_hash PASSED         [ 35%]
+tests/test_enrichment.py :: test_mitre_mapping PASSED                   [ 41%]
+tests/test_incident.py :: test_create_and_get_incident PASSED          [ 47%]
+tests/test_incident.py :: test_update_incident_status PASSED           [ 52%]
+tests/test_ingestion.py :: test_normalize_wazuh_alert PASSED            [ 58%]
+tests/test_ingestion.py :: test_missing_telemetry PASSED                [ 64%]
+tests/test_llm_triage.py :: test_generate_ai_assessment PASSED         [ 70%]
+tests/test_llm_triage.py :: test_ai_assessment_fallback PASSED          [ 76%]
+tests/test_triage.py :: test_deterministic_scoring PASSED              [ 82%]
+tests/test_triage.py :: test_containment_required PASSED                [ 88%]
+tests/test_triage.py :: test_recommended_actions PASSED                 [ 94%]
+tests/test_triage.py :: test_vt_score_cap PASSED                       [100%]
+
+============================== 17 passed in 1.42s ==============================
+```
+
+* **Project Directory Hierarchy**
+
+```text
+soar_engine/
+├── app/
+│   ├── config.py                  # Pydantic BaseSettings environment loader
+│   ├── containment.py             # Active Response containment executor
+│   ├── discord_interactions.py    # Ed25519 verification & button router
+│   ├── enrichment.py             # VirusTotal v3 API & MITRE ATT&CK mapper
+│   ├── incident.py               # In-memory thread-safe incident storage
+│   ├── ingestion.py              # Wazuh raw alert normalization engine
+│   ├── llm_triage.py             # Gemini structured AI assessment generator
+│   ├── main.py                   # FastAPI application & lifecycle routes
+│   ├── notifier.py               # Discord embed builder & message updater
+│   ├── schemas.py                # Canonical Pydantic schemas
+│   ├── triage.py                 # Deterministic scoring & severity engine
+│   └── services/
+│       └── wazuh.py              # Wazuh Manager REST API client
+│
+├── docs/
+│   └── assets/                   # Screenshots & architectural diagrams
+│
+├── tests/                        # Pytest suite with mocked external APIs
+│   ├── test_api.py
+│   ├── test_enrichment.py
+│   ├── test_incident.py
+│   ├── test_ingestion.py
+│   ├── test_llm_triage.py
+│   └── test_triage.py
+│
+├── .env.example
+├── pytest.ini
+└── requirements.txt
+```
+
+### Technical Design Philosophy
+
+* **Strict Boundary Separation:**
+
+```text
+AUTHORITATIVE SECURITY DATA           AI INTERPRETATION LAYER
+───────────────────────────           ───────────────────────
+├── Wazuh Log Telemetry               ├── Operational Title
+├── VirusTotal File Multi-Scans       ├── Executive Summary
+├── MITRE ATT&CK Mapping              ├── AI Confidence Score
+├── Deterministic Risk Score          ├── Threat Analysis
+├── Calculated Severity Level         ├── Known Facts Summary
+└── Containment Decision Rules        ├── Investigative Unknowns
+```                                   └── Analyst Recommendations
 
 ---
+

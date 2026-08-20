@@ -1,69 +1,180 @@
-from fastapi import FastAPI, Request, HTTPException
-import logging
-from app.config import settings
-from app.enrichment import extract_hash_from_payload, get_virustotal_hash_report
-from app.llm_triage import analyze_alert_with_llm
+from __future__ import annotations
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
+import logging
+
+from fastapi import FastAPI, HTTPException, Request
+
+from .config import settings
+from .enrichment import enrich_detection
+from .incident import incident_store
+from .ingestion import normalize_wazuh_alert
+from .schemas import Incident
+from .triage import triage_event
+from .llm_triage import generate_ai_assessment
+from .notifier import send_incident_to_discord
+from .discord_interactions import router as discord_router
+
 logger = logging.getLogger("socforge-soar")
 
 app = FastAPI(
-    title="SOCForge SOAR Microservice",
-    version="1.0.0",
-    description="Autonomous AI SOC Triage Engine"
+    title=settings.app_name,
+    version="0.2.0",
+    description=(
+        "SOCForge Security Orchestration, "
+        "Automation and Response Engine"
+    ),
 )
 
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "service": "socforge-soar"}
+app.include_router(discord_router)
 
-@app.post("/api/v1/triage")
-async def receive_wazuh_alert(request: Request):
+@app.get("/")
+async def root():
+    return {
+        "service": settings.app_name,
+        "status": "online",
+        "version": "0.2.0",
+    }
+
+
+@app.get("/health")
+async def health():
+    return {
+        "status": "healthy",
+        "service": settings.app_name,
+    }
+
+
+@app.post(
+    "/api/v1/events/wazuh",
+    response_model=Incident,
+)
+async def receive_wazuh_event(
+    request: Request,
+):
     try:
         payload = await request.json()
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON payload")
 
-    rule = payload.get("rule", {})
-    agent = payload.get("agent", {})
-    
-    rule_id = rule.get("id", "N/A")
-    rule_level = rule.get("level", 0)
-    agent_name = agent.get("name", "unknown")
-    description = rule.get("description", "No description provided")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Request body must contain valid JSON.",
+        ) from exc
 
-    # Step 1: Extract Hash & Query VirusTotal
-    file_hash = extract_hash_from_payload(payload)
-    vt_report = None
-    if file_hash:
-        logger.info(f"Extracting payload hash: {file_hash}. Querying Threat Intel...")
-        vt_report = await get_virustotal_hash_report(file_hash)
+    if not isinstance(payload, dict):
+        raise HTTPException(
+            status_code=400,
+            detail="Wazuh event must be a JSON object.",
+        )
 
-    # Compile enriched bundle for AI analysis
-    enriched_telemetry = {
-        "agent": agent_name,
-        "rule_id": rule_id,
-        "rule_level": rule_level,
-        "description": description,
-        "hash": file_hash,
-        "virustotal": vt_report,
-        "raw_payload": payload
-    }
+    try:
+        # 1. Normalize
+        detection = normalize_wazuh_alert(
+            payload
+        )
 
-    # Step 2: Execute AI Triage Analysis
-    logger.info("Triggering Gemini AI Triage Engine...")
-    ai_triage = analyze_alert_with_llm(enriched_telemetry)
+        # 2. Enrich
+        enrichment = await enrich_detection(
+            detection
+        )
 
-    return {
-        "status": "triaged",
-        "agent": agent_name,
-        "rule_id": rule_id,
-        "rule_level": rule_level,
-        "description": description,
-        "hash": file_hash,
-        "virustotal": vt_report,
-        "ai_triage": ai_triage.model_dump()
-    }
+        # 3. Deterministic triage
+        triage = triage_event(
+            detection,
+            enrichment,
+        )
+
+        # 4. Create incident
+        incident = incident_store.create(
+            detection=detection,
+            enrichment=enrichment,
+            triage=triage,
+        )
+
+        # 5. Generate AI assessment
+        ai_assessment = await generate_ai_assessment(
+            incident
+        )
+
+        # 6. Attach AI assessment
+        incident = incident_store.attach_ai_assessment(
+            incident.incident_id,
+            ai_assessment,
+        )
+
+        if incident is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to attach AI assessment.",
+            )
+
+        # 7. Dispatch incident to Discord
+        discord_message_id = (
+            await send_incident_to_discord(
+                incident
+            )
+        )
+
+        if discord_message_id:
+            incident = incident_store.attach_discord_message(
+                incident.incident_id,
+                discord_message_id,
+            )
+
+            if incident is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail=(
+                        "Failed to attach Discord "
+                        "message metadata."
+                    ),
+                )
+
+        incident.metadata["discord_dispatch"] = (
+            "SENT"
+            if discord_message_id
+            else "FAILED"
+        )
+
+        return incident
+
+    except HTTPException:
+        raise
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Unable to process Wazuh alert: "
+                f"{exc}"
+            ),
+        ) from exc
+
+
+@app.get(
+    "/api/v1/incidents/{incident_id}",
+    response_model=Incident,
+)
+async def get_incident(
+    incident_id: str,
+):
+
+    incident = incident_store.get(
+        incident_id
+    )
+
+    if incident is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Incident not found.",
+        )
+
+    return incident
+
+
+@app.get(
+    "/api/v1/incidents",
+    response_model=list[Incident],
+)
+async def list_incidents():
+
+    return incident_store.list()

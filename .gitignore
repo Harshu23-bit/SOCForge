@@ -1,6 +1,9 @@
 .env
+.env.*
+!.env.example
+
+venv/
 __pycache__/
-*.log
+*.py[cod]
+.pytest_cache/
 wazuh-docker/
-soar_engine/venv/
-soar_engine/.env
